@@ -30,7 +30,6 @@ async function handleGithubWebhook(req, res, next) {
     const headSha = payload.pull_request?.head?.sha || 'unknown-sha';
     const prTitle = payload.pull_request?.title || '';
     const prAuthor = payload.pull_request?.user?.login || '';
-    const repo = payload.repository.name;
     const parsedPrOpenedAt = payload.pull_request?.created_at
       ? new Date(payload.pull_request.created_at)
       : null;
