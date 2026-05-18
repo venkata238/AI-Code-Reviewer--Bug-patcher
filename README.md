@@ -26,3 +26,4 @@ VITE_WEBHOOK_URL=https://your-public-webhook-url.example.com/webhook
 docker compose up --build
 ```
 App will be served at http://localhost:8080
+Testing GitHub webhook integration
