@@ -8,7 +8,8 @@ function verifySignature(req, res, next) {
     process.env.GITHUB_WEBHOOK_SECRET
   );
 
-  const digest = "sha256=" + hmac.update(req.rawBody).digest("hex");
+  const digest =
+    "sha256=" + hmac.update(req.rawBody).digest("hex");
 
   if (!signature || signature !== digest) {
     return res.status(401).send("Invalid signature");

@@ -1,11 +1,18 @@
 require("dotenv").config();
 
 const express = require("express");
-
+const verifySignature = require("./middleware/verifyGithubSignature");
 const app = express();
 
-app.use(express.json());
 
+// Parse JSON
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // Home Route
 app.get("/", (req, res) => {
@@ -13,11 +20,12 @@ app.get("/", (req, res) => {
 });
 
 
-// Webhook Route
-app.post("/webhook", (req, res) => {
+// Secure Webhook Route
+app.post("/webhook", verifySignature, (req, res) => {
+  console.log("Webhook verified successfully");
   console.log(req.body);
 
-  res.status(200).send("Webhook received");
+  res.status(200).send("Webhook received securely");
 });
 
 
