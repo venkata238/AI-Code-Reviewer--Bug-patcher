@@ -1,3 +1,4 @@
+const octokit = require("./services/githubService");
 require("dotenv").config();
 
 const express = require("express");
@@ -21,11 +22,28 @@ app.get("/", (req, res) => {
 
 
 // Secure Webhook Route
-app.post("/webhook", verifySignature, (req, res) => {
-  console.log("Webhook verified successfully");
-  console.log(req.body);
+app.post("/webhook", verifySignature, async (req, res) => {
+  try {
+    const repo = req.body.repository.name;
+    const owner = req.body.repository.owner.login;
+    const pull_number = req.body.pull_request.number;
 
-  res.status(200).send("Webhook received securely");
+    const files = await octokit.pulls.listFiles({
+      owner,
+      repo,
+      pull_number,
+    });
+
+    console.log("Repo:", repo);
+    console.log("Owner:", owner);
+    console.log("PR Number:", pull_number);
+    console.log(files.data);
+
+    res.status(200).send("Webhook received securely");
+  } catch (error) {
+    console.error("Error fetching PR files:", error);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
 
