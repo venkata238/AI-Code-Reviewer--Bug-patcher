@@ -1,152 +1,72 @@
-const axios = require('axios');
+const groqClient = require('./clients/groqClient');
 
 const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
 const DEPRECATED_GROQ_MODELS = new Set(['mixtral-8x7b-32768']);
 
-async function analyzeHunk({ filePath, hunk, owner, repo, teamSettings = {}, rulesContext = {} }) {
+async function analyzeHunk({
+  filePath,
+  hunk,
+  owner,
+  repo,
+  teamSettings = {},
+  rulesContext = {},
+}) {
   const prompt = `You are GitGuard AI reviewing ${owner}/${repo}.
 
 Find bugs/security flaws in this added code.
 
 Return ONLY valid JSON with keys:
-- title: string (short issue headline)
-- severity: one of low|medium|high|critical
-- category: one of security|performance|correctness|maintainability
-- confidence: number between 0 and 1
-- suggestion: string (must contain corrected code in a fenced block)
-- explanation: string (Markdown bullet list of issue(s))
+- title: string
+- severity: low|medium|high|critical
+- category: security|performance|correctness|maintainability
+- confidence: number 0-1
+- suggestion: string (must include corrected code block)
+- explanation: markdown bullets
 
 Rules:
-- Prioritize fix-first output.
 - ${rulesContext.strictInstruction || 'Focus on practical issues.'}
 - ${rulesContext.securityInstruction || 'Include security guidance only when relevant.'}
-- Explanation tone: ${rulesContext.tone || 'human'}.
-- Always format explanation as Markdown bullets (each line starts with "- ").
-- Always format suggestion as a fenced code block with the corrected code.
+- Tone: ${rulesContext.tone || 'human'}
 
-Repo settings snapshot: ${JSON.stringify(teamSettings)}
+Repo settings:
+${JSON.stringify(teamSettings)}
 
-Changed file: ${filePath}
-Hunk header: ${hunk.header}
+File: ${filePath}
+Hunk: ${hunk.header}
+
 Added code:
-${hunk.changedLines.join('\n') || '(no added code)'}
+${hunk.changedLines.join('\n') || '(none)'}
 
-Diff context:
+Patch:
 ${hunk.patchLines.join('\n')}`;
 
   try {
-    // Use Groq API for fast LLM inference
-    const res = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await groqClient.post('/openai/v1/chat/completions', {
       model: getGroqModel(),
-      messages: [{ role: 'system', content: 'You are a helpful code reviewer.' }, { role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: 'You are a helpful code reviewer.' },
+        { role: 'user', content: prompt },
+      ],
       temperature: 0.2,
-      max_tokens: 800
-    }, { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` } });
+      max_tokens: 800,
+    });
 
     const text = res.data.choices?.[0]?.message?.content || '';
     const parsed = safeJsonParse(text);
-    if (parsed) {
-      return normalize(parsed);
-    }
 
-    return normalize({ suggestion: text, explanation: '' });
-  } catch (err) {
-    console.error('Groq AI analysis error', err.message || err);
-    return null;
-  }
-}
+    if (parsed) return normalize(parsed);
 
-function getGroqModel() {
-  const configuredModel = process.env.GROQ_MODEL;
-  if (!configuredModel || DEPRECATED_GROQ_MODELS.has(configuredModel)) {
-    return DEFAULT_GROQ_MODEL;
-  }
-  return configuredModel;
-}
-
-async function analyzeCode(files, owner, repo, teamSettings = {}, rulesContext = {}) {
-  console.log("Sending PR files to AI Engineer...\n");
-
-  const results = [];
-
-  for (const file of files) {
-    console.log("Filename:", file.filename);
-    console.log("Additions:", file.additions);
-    console.log("Deletions:", file.deletions);
-    console.log("-------------------");
-
-    // Skip files without patch data
-    if (!file.patch) continue;
-
-    // Simulate a hunk object
-    const hunk = {
-      header: "PR Review",
-      changedLines: file.patch.split("\n"),
-      patchLines: file.patch.split("\n"),
-    };
-
-    const analysis = await analyzeHunk({
-      filePath: file.filename,
-      hunk,
-      owner,
-      repo,
-      teamSettings,
-      rulesContext,
+    return normalize({
+      suggestion: text,
+      explanation: '',
     });
-
-    results.push({
-      file: file.filename,
-      analysis,
-    });
-  }
-
-  return results;
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
   } catch (err) {
-    const fenced = text.match(/```json\s*([\s\S]*?)```/i);
-    if (fenced?.[1]) {
-      try {
-        return JSON.parse(fenced[1]);
-      } catch (innerErr) {
-        return null;
-      }
+    if (err.code === 'ECONNABORTED') {
+      console.error('⏱ Groq timeout for:', filePath);
+    } else {
+      console.error('❌ Groq error:', err.message);
     }
-    const genericObject = text.match(/\{[\s\S]*\}/);
-    if (genericObject?.[0]) {
-      try {
-        return JSON.parse(genericObject[0]);
-      } catch (innerErr) {
-        return null;
-      }
-    }
-    return null;
+
+    return null; // important: fail safely
   }
 }
-
-function normalize(raw) {
-  const confidence = Number(raw.confidence);
-  return {
-    title: typeof raw.title === 'string' ? raw.title : '',
-    severity: normalizeSeverity(raw.severity),
-    category: normalizeCategory(raw.category),
-    confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0.65,
-    suggestion: typeof raw.suggestion === 'string' ? raw.suggestion : '',
-    explanation: typeof raw.explanation === 'string' ? raw.explanation : '',
-  };
-}
-
-function normalizeSeverity(severity) {
-  const val = String(severity || '').toLowerCase();
-  return ['low', 'medium', 'high', 'critical'].includes(val) ? val : 'medium';
-}
-
-function normalizeCategory(category) {
-  const val = String(category || '').toLowerCase();
-  return ['security', 'performance', 'correctness', 'maintainability'].includes(val) ? val : 'correctness';
-}
-
-module.exports = { analyzeHunk, getGroqModel, analyzeCode };
