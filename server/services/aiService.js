@@ -1,5 +1,4 @@
 const axios = require('axios');
-const logger = require('../config/logger');
 
 const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
 const DEPRECATED_GROQ_MODELS = new Set(['mixtral-8x7b-32768']);
@@ -52,7 +51,7 @@ ${hunk.patchLines.join('\n')}`;
 
     return normalize({ suggestion: text, explanation: '' });
   } catch (err) {
-    logger.error('Groq AI analysis error', err.message || err);
+    console.error('Groq AI analysis error', err.message || err);
     return null;
   }
 }
@@ -63,6 +62,45 @@ function getGroqModel() {
     return DEFAULT_GROQ_MODEL;
   }
   return configuredModel;
+}
+
+async function analyzeCode(files, owner, repo, teamSettings = {}, rulesContext = {}) {
+  console.log("Sending PR files to AI Engineer...\n");
+
+  const results = [];
+
+  for (const file of files) {
+    console.log("Filename:", file.filename);
+    console.log("Additions:", file.additions);
+    console.log("Deletions:", file.deletions);
+    console.log("-------------------");
+
+    // Skip files without patch data
+    if (!file.patch) continue;
+
+    // Simulate a hunk object
+    const hunk = {
+      header: "PR Review",
+      changedLines: file.patch.split("\n"),
+      patchLines: file.patch.split("\n"),
+    };
+
+    const analysis = await analyzeHunk({
+      filePath: file.filename,
+      hunk,
+      owner,
+      repo,
+      teamSettings,
+      rulesContext,
+    });
+
+    results.push({
+      file: file.filename,
+      analysis,
+    });
+  }
+
+  return results;
 }
 
 function safeJsonParse(text) {
@@ -111,4 +149,4 @@ function normalizeCategory(category) {
   return ['security', 'performance', 'correctness', 'maintainability'].includes(val) ? val : 'correctness';
 }
 
-module.exports = { analyzeHunk, getGroqModel };
+module.exports = { analyzeHunk, getGroqModel, analyzeCode };
