@@ -14,15 +14,3 @@ Frontend dashboard (React + Tailwind + Docker) for the GitGuard AI project.
 npm install
 npm run dev
 ```
-
-## Environment
-Copy `.env.example` to `.env` and set:
-```
-VITE_WEBHOOK_URL=https://your-public-webhook-url.example.com/webhook
-```
-
-## Docker
-```bash
-docker compose up --build
-```
-App will be served at http://localhost:8080
