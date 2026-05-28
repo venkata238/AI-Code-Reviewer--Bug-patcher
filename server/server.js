@@ -2,10 +2,12 @@
 require("dotenv").config();
 const { analyzeCode } = require("./services/aiService");
 const express = require("express");
+const morgan = require("morgan");
 const verifyGithubSignature = require("./middleware/verifyGithubSignature");
 const octokit = require("./services/githubService");
 const app = express();
-
+app.use(morgan("dev"));
+const errorHandler = require('./middlewares/errorHandler');
 app.use(
   express.json({
     verify: (req, res, buf) => {
@@ -21,7 +23,8 @@ app.get("/", (req, res) => {
 
 
 // Webhook Route
-app.post("/webhook", async (req, res) => {
+app.post("/webhook",  verifyGithubSignature,
+ async (req, res,next) => {
   try {
     // Validate GitHub payload
     if (!req.body || !req.body.repository || !req.body.pull_request) {
@@ -66,13 +69,12 @@ app.post("/webhook", async (req, res) => {
     res.status(200).send("Webhook processed successfully");
 
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).send("Server error");
+   next(error);
   }
 });
 
 const PORT = process.env.PORT || 5000;
-
+app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
