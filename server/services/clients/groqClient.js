@@ -1,17 +1,21 @@
 const axios = require('axios');
-const axiosRetry = require('axios-retry');
+
+const axiosRetryModule = require('axios-retry');
+
+const axiosRetry = axiosRetryModule.default;
 
 const groqClient = axios.create({
   baseURL: 'https://api.groq.com',
-  timeout: 30000, // ✅ GLOBAL timeout (30s)
+  timeout: 30000,
   headers: {
     Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
     'Content-Type': 'application/json',
   },
 });
+
 axiosRetry(groqClient, {
   retries: 2,
-  retryDelay: axiosRetry.exponentialDelay,
+  retryDelay: axiosRetryModule.exponentialDelay,
   retryCondition: (err) => {
     return (
       err.code === 'ECONNABORTED' ||
@@ -19,4 +23,5 @@ axiosRetry(groqClient, {
     );
   },
 });
+
 module.exports = groqClient;
