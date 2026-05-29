@@ -1,7 +1,7 @@
 const octokit = require("../services/githubService");
 const { analyzeCode } = require("../services/aiService");
 const { saveReview } = require("../services/storageService");
-
+const { postPRComment } = require("../services/commentService");
 const processReviewJob = async (jobData) => {
   const { owner, repo, pull_number } = jobData;
 
@@ -25,7 +25,12 @@ const processReviewJob = async (jobData) => {
     pull_number,
     review,
   });
-
+await postPRComment({
+  owner,
+  repo,
+  pull_number,
+  review,
+});
   console.log("🎉 Review Finished");
 };
 
