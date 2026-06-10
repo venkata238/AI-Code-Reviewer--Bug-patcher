@@ -1,11 +1,11 @@
 const crypto = require("crypto");
-
+const config = require("../config");
 function verifyGithubSignature(req, res, next) {
   const signature = req.headers["x-hub-signature-256"];
 
   const hmac = crypto.createHmac(
     "sha256",
-    process.env.GITHUB_WEBHOOK_SECRET
+config.githubWebhookSecret
   );
 
   const digest =
